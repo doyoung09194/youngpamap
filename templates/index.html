@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>영파맵</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+           background: #ffffff; color: #111; min-height: 100vh; }
+    header { padding: 24px 30px; border-bottom: 1px solid #e5e7eb; }
+    header h1 { font-size: 20px; font-weight: 700; }
+    header p  { font-size: 13px; color: #888; margin-top: 4px; }
+    .container { max-width: 520px; margin: 40px auto; padding: 0 16px; }
+    .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px;
+            padding: 24px; margin-bottom: 16px; }
+    label { font-size: 13px; font-weight: 600; color: #333;
+            display: block; margin-bottom: 6px; }
+    .input-wrap { position: relative; }
+    input[type=text] { width: 100%; padding: 10px 14px;
+           border: 1px solid #d1d5db; border-radius: 8px;
+           font-size: 15px; outline: none; color: #111; background: #fff; }
+    input[type=text]:focus { border-color: #111; }
+    .suggestions { position: absolute; left: 0; right: 0; z-index: 100;
+                   border: 1px solid #e5e7eb; border-top: none;
+                   border-radius: 0 0 8px 8px; background: white;
+                   max-height: 200px; overflow-y: auto; display: none; }
+    .suggestions div { padding: 10px 14px; cursor: pointer; font-size: 14px; color: #111; }
+    .suggestions div:hover { background: #f5f5f5; }
+    .room-id { font-weight: 700; margin-right: 8px; }
+    .center { text-align: center; margin: 12px 0; }
+    .swap-btn { background: #fff; border: 1px solid #d1d5db; color: #333;
+                border-radius: 8px; padding: 7px 16px; font-size: 13px; cursor: pointer; }
+    .swap-btn:hover { background: #f5f5f5; }
+    .find-btn { width: 100%; padding: 13px; background: #111; color: #fff;
+                border: none; border-radius: 8px; font-size: 15px;
+                font-weight: 700; cursor: pointer; margin-top: 14px; }
+    .find-btn:hover { background: #333; }
+    #error { color: #cc0000; font-size: 13px; margin-top: 10px; display: none; }
+    #result-card { display: none; }
+    #result { white-space: pre-line; font-size: 14px; line-height: 2.0; color: #111; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>영파맵</h1>
+  <p>우리학교 길찾기</p>
+</header>
+
+<div class="container">
+  <div class="card">
+    <div style="margin-bottom:14px;">
+      <label>출발 교실</label>
+      <div class="input-wrap">
+        <input type="text" id="start-input" placeholder="교실 번호 또는 이름 입력" autocomplete="off">
+        <div class="suggestions" id="start-suggestions"></div>
+      </div>
+      <input type="hidden" id="start-id">
+    </div>
+
+    <div class="center">
+      <button class="swap-btn" onclick="swapRooms()">↑↓ 출발·도착 바꾸기</button>
+    </div>
+
+    <div style="margin-bottom:4px;">
+      <label>도착 교실</label>
+      <div class="input-wrap">
+        <input type="text" id="end-input" placeholder="교실 번호 또는 이름 입력" autocomplete="off">
+        <div class="suggestions" id="end-suggestions"></div>
+      </div>
+      <input type="hidden" id="end-id">
+    </div>
+
+    <button class="find-btn" onclick="findRoute()">경로 찾기</button>
+    <div id="error"></div>
+  </div>
+
+  <div class="card" id="result-card">
+    <div id="result"></div>
+  </div>
+</div>
+
+<script>
+function setupAutocomplete(inputId, suggestionsId, hiddenId) {
+  const input  = document.getElementById(inputId);
+  const box    = document.getElementById(suggestionsId);
+  const hidden = document.getElementById(hiddenId);
+
+  input.addEventListener('input', async () => {
+    const q = input.value.trim();
+    hidden.value = '';
+    if (!q) { box.style.display = 'none'; return; }
+    const res   = await fetch('/search?q=' + encodeURIComponent(q));
+    const rooms = await res.json();
+    if (!rooms.length) { box.style.display = 'none'; return; }
+    box.innerHTML = rooms.slice(0, 8).map(r =>
+      `<div onclick="selectRoom('${inputId}','${suggestionsId}','${hiddenId}','${r.id}','${r.name}')">
+         <span class="room-id">${r.id}</span>${r.name}
+       </div>`
+    ).join('');
+    box.style.display = 'block';
+  });
+
+  document.addEventListener('click', e => {
+    if (!input.contains(e.target) && !box.contains(e.target))
+      box.style.display = 'none';
+  });
+}
+
+function selectRoom(inputId, suggestionsId, hiddenId, id, name) {
+  document.getElementById(inputId).value  = id + ' (' + name + ')';
+  document.getElementById(hiddenId).value = id;
+  document.getElementById(suggestionsId).style.display = 'none';
+}
+
+function swapRooms() {
+  const si = document.getElementById('start-input');
+  const ei = document.getElementById('end-input');
+  const sh = document.getElementById('start-id');
+  const eh = document.getElementById('end-id');
+  [si.value, ei.value] = [ei.value, si.value];
+  [sh.value, eh.value] = [eh.value, sh.value];
+}
+
+async function findRoute() {
+  const start   = document.getElementById('start-id').value;
+  const end     = document.getElementById('end-id').value;
+  const errEl   = document.getElementById('error');
+  const resEl   = document.getElementById('result');
+  const resCard = document.getElementById('result-card');
+  errEl.style.display = 'none';
+
+  if (!start || !end) {
+    errEl.textContent     = '교실을 목록에서 선택해주세요.';
+    errEl.style.display   = 'block';
+    resCard.style.display = 'none';
+    return;
+  }
+
+  const res  = await fetch('/route?start=' + encodeURIComponent(start) + '&end=' + encodeURIComponent(end));
+  const data = await res.json();
+
+  if (data.error) {
+    errEl.textContent     = data.error;
+    errEl.style.display   = 'block';
+    resCard.style.display = 'none';
+    return;
+  }
+
+  resEl.textContent     = data.description;
+  resCard.style.display = 'block';
+}
+
+setupAutocomplete('start-input', 'start-suggestions', 'start-id');
+setupAutocomplete('end-input',   'end-suggestions',   'end-id');
+</script>
+</body>
+</html>
