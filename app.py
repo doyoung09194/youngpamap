@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request, jsonify
 from graph import SchoolGraph
+import os
 
 app = Flask(__name__)
 g = SchoolGraph()
@@ -33,4 +34,5 @@ def route():
     return jsonify({'cost': cost, 'path': path, 'description': description})
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
