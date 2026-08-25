@@ -14,7 +14,15 @@ def index():
 def search():
     query = request.args.get('q', '').strip()
     all_rooms = g.get_all_rooms()
-    results = [r for r in all_rooms if query in r['id'] or query in r['name']]
+    
+    # 같은 이름 중복 제거 (첫 번째만 표시)
+    seen_names = {}
+    results = []
+    for r in all_rooms:
+        if query in r['id'] or query in r['name']:
+            if r['name'] not in seen_names:
+                seen_names[r['name']] = r['id']
+                results.append(r)
     return jsonify(results)
 
 @app.route('/route')

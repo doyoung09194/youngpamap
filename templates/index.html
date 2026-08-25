@@ -19,7 +19,6 @@
 
     .route-box { display: flex; align-items: stretch; gap: 16px; }
 
-    /* 왼쪽 아이콘 컬럼 */
     .icon-col { display: flex; flex-direction: column; align-items: center;
                 padding-top: 18px; }
     .dot-green { width: 12px; height: 12px; border-radius: 50%;
@@ -28,7 +27,6 @@
                  background: #F44336; border: 3px solid #F44336; flex-shrink: 0; }
     .dot-line  { flex: 1; width: 2px; background: #ddd; margin: 4px 0; }
 
-    /* 오른쪽 입력 컬럼 */
     .input-col { flex: 1; display: flex; flex-direction: column; }
     .input-row { flex: 1; padding: 10px 0; }
     .input-row + .input-row { border-top: 1px solid #f0f0f0; }
@@ -73,14 +71,11 @@
 <div class="container">
   <div class="card">
     <div class="route-box">
-      <!-- 아이콘 컬럼 -->
       <div class="icon-col">
         <div class="dot-green"></div>
         <div class="dot-line"></div>
         <div class="dot-red"></div>
       </div>
-
-      <!-- 입력 컬럼 -->
       <div class="input-col">
         <div class="input-row">
           <div class="route-label">출발</div>
@@ -133,6 +128,13 @@ function setupAutocomplete(inputId, suggestionsId, hiddenId) {
        </div>`
     ).join('');
     box.style.display = 'block';
+  });
+
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      const first = box.querySelector('div');
+      if (first) first.click();
+    }
   });
 
   document.addEventListener('click', e => {
