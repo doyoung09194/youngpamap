@@ -2,41 +2,63 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
+  <meta name="color-scheme" content="light">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>영파맵</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
-           background: #ffffff; color: #111; min-height: 100vh; }
-    header { padding: 24px 30px; border-bottom: 1px solid #e5e7eb; }
-    header h1 { font-size: 20px; font-weight: 700; }
-    header p  { font-size: 13px; color: #888; margin-top: 4px; }
-    .container { max-width: 520px; margin: 40px auto; padding: 0 16px; }
-    .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px;
-            padding: 24px; margin-bottom: 16px; }
-    label { font-size: 13px; font-weight: 600; color: #333;
-            display: block; margin-bottom: 6px; }
-    .input-wrap { position: relative; }
-    input[type=text] { width: 100%; padding: 10px 14px;
-           border: 1px solid #d1d5db; border-radius: 8px;
-           font-size: 15px; outline: none; color: #111; background: #fff; }
-    input[type=text]:focus { border-color: #111; }
-    .suggestions { position: absolute; left: 0; right: 0; z-index: 100;
-                   border: 1px solid #e5e7eb; border-top: none;
-                   border-radius: 0 0 8px 8px; background: white;
-                   max-height: 200px; overflow-y: auto; display: none; }
-    .suggestions div { padding: 10px 14px; cursor: pointer; font-size: 14px; color: #111; }
+           background: #f5f5f5; color: #111; min-height: 100vh; color-scheme: light; }
+    header { background: #fff; padding: 20px 24px; border-bottom: 1px solid #eee; }
+    header h1 { font-size: 18px; font-weight: 700; }
+    header p  { font-size: 12px; color: #999; margin-top: 3px; }
+
+    .container { max-width: 480px; margin: 24px auto; padding: 0 16px; }
+
+    .card { background: #fff; border-radius: 16px; padding: 20px 20px;
+            box-shadow: 0 1px 6px rgba(0,0,0,0.08); margin-bottom: 16px; }
+
+    /* 출발·도착 입력 영역 */
+    .route-input { display: flex; flex-direction: column; gap: 0; }
+
+    .route-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; }
+
+    .dot-wrap { display: flex; flex-direction: column; align-items: center; width: 20px; flex-shrink: 0; }
+    .dot-green { width: 12px; height: 12px; border-radius: 50%;
+                 background: #fff; border: 3px solid #4CAF50; }
+    .dot-red   { width: 12px; height: 12px; border-radius: 50%;
+                 background: #F44336; border: 3px solid #F44336; }
+    .dot-line  { width: 2px; height: 28px; background: #ddd; margin: 2px 0; }
+
+    .input-wrap { flex: 1; position: relative; }
+    .route-label { font-size: 10px; color: #aaa; font-weight: 600;
+                   text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 3px; }
+    input[type=text] { width: 100%; border: none; outline: none; font-size: 15px;
+                       color: #111; background: transparent; padding: 0; }
+    input[type=text]::placeholder { color: #bbb; }
+
+    .suggestions { position: absolute; left: -32px; right: 0; z-index: 100;
+                   border: 1px solid #eee; border-radius: 12px;
+                   background: white; max-height: 200px; overflow-y: auto;
+                   display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+                   top: calc(100% + 8px); }
+    .suggestions div { padding: 12px 16px; cursor: pointer; font-size: 14px; color: #111; }
     .suggestions div:hover { background: #f5f5f5; }
-    .room-id { font-weight: 700; margin-right: 8px; }
-    .center { text-align: center; margin: 12px 0; }
-    .swap-btn { background: #fff; border: 1px solid #d1d5db; color: #333;
-                border-radius: 8px; padding: 7px 16px; font-size: 13px; cursor: pointer; }
-    .swap-btn:hover { background: #f5f5f5; }
-    .find-btn { width: 100%; padding: 13px; background: #111; color: #fff;
-                border: none; border-radius: 8px; font-size: 15px;
-                font-weight: 700; cursor: pointer; margin-top: 14px; }
+    .room-id { font-weight: 700; margin-right: 8px; color: #333; }
+
+    .divider { height: 1px; background: #f0f0f0; margin: 0 0 0 32px; }
+
+    .swap-wrap { display: flex; justify-content: flex-end; margin-top: 12px; }
+    .swap-btn { background: #f5f5f5; border: none; color: #555; border-radius: 20px;
+                padding: 6px 14px; font-size: 12px; cursor: pointer; }
+    .swap-btn:hover { background: #eee; }
+
+    .find-btn { width: 100%; padding: 14px; background: #111; color: #fff;
+                border: none; border-radius: 12px; font-size: 15px;
+                font-weight: 700; cursor: pointer; margin-top: 12px; }
     .find-btn:hover { background: #333; }
-    #error { color: #cc0000; font-size: 13px; margin-top: 10px; display: none; }
+
+    #error { color: #F44336; font-size: 13px; margin-top: 8px; display: none; }
     #result-card { display: none; }
     #result { white-space: pre-line; font-size: 14px; line-height: 2.0; color: #111; }
   </style>
@@ -50,26 +72,44 @@
 
 <div class="container">
   <div class="card">
-    <div style="margin-bottom:14px;">
-      <label>출발 교실</label>
-      <div class="input-wrap">
-        <input type="text" id="start-input" placeholder="교실 번호 또는 이름 입력" autocomplete="off">
-        <div class="suggestions" id="start-suggestions"></div>
+    <div class="route-input">
+      <!-- 출발 -->
+      <div class="route-row">
+        <div class="dot-wrap">
+          <div class="dot-green"></div>
+        </div>
+        <div class="input-wrap">
+          <div class="route-label">출발</div>
+          <input type="text" id="start-input" placeholder="교실 번호 또는 이름" autocomplete="off">
+          <div class="suggestions" id="start-suggestions"></div>
+        </div>
       </div>
       <input type="hidden" id="start-id">
-    </div>
 
-    <div class="center">
-      <button class="swap-btn" onclick="swapRooms()">↑↓ 출발·도착 바꾸기</button>
-    </div>
+      <!-- 점선 연결 -->
+      <div style="display:flex; align-items:stretch; gap:12px;">
+        <div class="dot-wrap">
+          <div class="dot-line"></div>
+        </div>
+        <div class="divider" style="flex:1; align-self:center;"></div>
+      </div>
 
-    <div style="margin-bottom:4px;">
-      <label>도착 교실</label>
-      <div class="input-wrap">
-        <input type="text" id="end-input" placeholder="교실 번호 또는 이름 입력" autocomplete="off">
-        <div class="suggestions" id="end-suggestions"></div>
+      <!-- 도착 -->
+      <div class="route-row">
+        <div class="dot-wrap">
+          <div class="dot-red"></div>
+        </div>
+        <div class="input-wrap">
+          <div class="route-label">도착</div>
+          <input type="text" id="end-input" placeholder="교실 번호 또는 이름" autocomplete="off">
+          <div class="suggestions" id="end-suggestions"></div>
+        </div>
       </div>
       <input type="hidden" id="end-id">
+    </div>
+
+    <div class="swap-wrap">
+      <button class="swap-btn" onclick="swapRooms()">↑↓ 바꾸기</button>
     </div>
 
     <button class="find-btn" onclick="findRoute()">경로 찾기</button>
@@ -132,8 +172,8 @@ async function findRoute() {
   errEl.style.display = 'none';
 
   if (!start || !end) {
-    errEl.textContent     = '교실을 목록에서 선택해주세요.';
-    errEl.style.display   = 'block';
+    errEl.textContent    = '교실을 목록에서 선택해주세요.';
+    errEl.style.display  = 'block';
     resCard.style.display = 'none';
     return;
   }
