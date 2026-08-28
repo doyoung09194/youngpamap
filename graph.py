@@ -49,7 +49,7 @@ YEONGPA_ROOMS = {
         ('영파117','공용8'),('영파118','특별실B(다목적실1)'),('영파119','음악실A'),('영파120','특별실B(다목적실1)'),('영파121','음악실B'),('영파122','관리실'),
     ],
     '2': [
-        ('영파201','교사연수실A'),('영파202','1-3'),('영파203','수업연구실'),
+        ('영파201','교사연수실A'),('영파202','1-3'),('영파203','교사연수실A'),
         ('영파204','1-4'),('영파205','1-11'),('영파206','1-5'),('영파207','1-10'),
         ('영파208','1-6'),('영파209','1-9'),('영파210','1-7'),('영파211','1-8'),
         ('영파212','도서실'),('영파213','영파213'),('영파214','도서실'),('영파215','도서실'),
@@ -70,6 +70,50 @@ YEONGPA_ROOMS = {
     ],
 }
 YEONGPA_STAIR_AFTER = {'M': 10}
+
+# 계단 옆 교실 레이블 (층별)
+STAIR_LABELS = {
+    '동암_계단L': {
+        'B': '동암관 왼쪽',
+        '1': '동암관 왼쪽',
+        '2': '컴퓨터실(동암201)',
+        '3': '음악실(동암301)',
+        '4': '과학실(동암401)',
+        '5': '과학실(동암501)',
+    },
+    '동암_계단M': {
+        'B': '동암관 가운데',
+        '1': '보건실(동암106)',
+        '2': '제1교무실(동암205)',
+        '3': '제3교무실(동암305)',
+        '4': '방송실(동암407)',
+        '5': '자기주도학습실(동암507)',
+    },
+    '동암_계단R': {
+        'B': '동암관 오른쪽',
+        '1': '생명과학실(동암110)',
+        '2': '제2교무실(동암210)',
+        '3': '특별실A(동암310)',
+        '4': '제4교무실(동암410)',
+        '5': '화학실(동암510)',
+    },
+    '영파_계단M': {
+        'B': '영파관 가운데',
+        '1': '영파관 가운데',
+        '2': '영파관 가운데',
+        '3': '영파관 가운데',
+        '4': '영파관 가운데',
+        '5': '영파관 가운데',
+    },
+    '영파_계단R': {
+        'B': '영파관 오른쪽',
+        '1': '영파관 오른쪽',
+        '2': '영파관 오른쪽',
+        '3': '영파관 오른쪽',
+        '4': '영파관 오른쪽',
+        '5': '영파관 오른쪽',
+    },
+}
 
 
 class SchoolGraph:
@@ -170,9 +214,10 @@ class SchoolGraph:
         return dist[end], path
 
     def _stair_label(self, node):
-        if '계단L' in node: return '왼쪽 계단'
-        if '계단M' in node: return '가운데 계단'
-        if '계단R' in node: return '오른쪽 계단'
+        floor = node.split('_')[-1]
+        for key in STAIR_LABELS:
+            if key in node:
+                return STAIR_LABELS[key].get(floor, '계단')
         return '계단'
 
     def _floor_of(self, node):
@@ -195,6 +240,8 @@ class SchoolGraph:
         i, step = 0, 1
         while i < len(path) - 1:
             cur, nxt = path[i], path[i+1]
+
+            # 교실→계단 진입
             if '계단' in nxt and '계단' not in cur:
                 stair_label = self._stair_label(nxt)
                 j = i + 1
@@ -206,12 +253,14 @@ class SchoolGraph:
                 if f1 is not None and f2 is not None and f1 != f2:
                     diff = f2 - f1
                     direction = '올라갑니다' if diff > 0 else '내려갑니다'
-                    lines.append(f"  {step}. {stair_label}을 이용해 {abs(diff)}층 {direction}.")
+                    lines.append(f"  {step}. {stair_label} 옆 계단을 이용해 {abs(diff)}층 {direction}.")
                 else:
-                    lines.append(f"  {step}. {stair_label} 방향으로 이동합니다.")
+                    lines.append(f"  {step}. {stair_label} 옆 계단으로 이동합니다.")
                 step += 1
                 i = j
                 continue
+
+            # 건물 간 연결통로
             if '계단R' in cur and '계단M' in nxt:
                 if cur.startswith('동암'):
                     lines.append(f"  {step}. 연결 통로를 통해 영파관으로 이동합니다.")
@@ -220,21 +269,24 @@ class SchoolGraph:
                 step += 1
                 i += 1
                 continue
+
             if '계단' in cur and '계단' in nxt:
                 i += 1; continue
             if '계단' in cur and '계단' not in nxt:
                 i += 1; continue
             if nxt != path[-1]:
                 i += 1; continue
+
+            # 목적지 도착
             dest_name = self.node_info.get(nxt, nxt)
-            lines.append(f"  {step}. {dest_name}({nxt})에 도착합니다. ✅")
+            lines.append(f"  {step}. {dest_name}({nxt})에 도착합니다.")
             step += 1
             i += 1
+
         lines.append("─" * 32)
         return '\n'.join(lines)
 
     def get_all_rooms(self):
-        """검색용 전체 교실 목록 반환"""
         rooms = []
         for rid, rname in self.node_info.items():
             if '계단' not in rid:
