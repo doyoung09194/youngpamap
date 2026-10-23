@@ -379,7 +379,6 @@ class SchoolGraph {
     const lines = [
       `📍 출발: ${nameOf(path[0])} (${path[0]})`,
       `🏁 도착: ${nameOf(path[path.length - 1])} (${path[path.length - 1]})`,
-      '─'.repeat(32),
     ];
     let i = 0, step = 1;
     while (i < path.length - 1) {
@@ -429,7 +428,6 @@ class SchoolGraph {
       i++;
     }
 
-    lines.push('─'.repeat(32));
     return lines.join('\n');
   }
 
