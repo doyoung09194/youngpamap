@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="color-scheme" content="light">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>영파맵</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+           background: #f5f5f5; color: #111; min-height: 100vh; color-scheme: light; }
+    header { background: #fff; padding: 20px 24px; border-bottom: 1px solid #eee; }
+    header h1 { font-size: 18px; font-weight: 700; }
+    header p  { font-size: 12px; color: #999; margin-top: 3px; }
+
+    .container { max-width: 480px; margin: 24px auto; padding: 0 16px; }
+    .card { background: #fff; border-radius: 16px; padding: 20px;
+            box-shadow: 0 1px 6px rgba(0,0,0,0.08); margin-bottom: 16px; }
+
+    .route-box { display: flex; align-items: stretch; gap: 16px; }
+
+    .icon-col { display: flex; flex-direction: column; align-items: center;
+                padding-top: 18px; }
+    .dot-green { width: 12px; height: 12px; border-radius: 50%;
+                 background: #fff; border: 3px solid #4CAF50; flex-shrink: 0; }
+    .dot-red   { width: 12px; height: 12px; border-radius: 50%;
+                 background: #F44336; border: 3px solid #F44336; flex-shrink: 0; }
+    .dot-line  { flex: 1; width: 2px; background: #ddd; margin: 4px 0; }
+
+    .input-col { flex: 1; display: flex; flex-direction: column; }
+    .input-row { flex: 1; padding: 10px 0; }
+    .input-row + .input-row { border-top: 1px solid #f0f0f0; }
+    .route-label { font-size: 10px; color: #aaa; font-weight: 600;
+                   text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+    .input-wrap { position: relative; }
+    input[type=text] { width: 100%; border: none; outline: none; font-size: 15px;
+                       color: #111; background: transparent; padding: 0; }
+    input[type=text]::placeholder { color: #ccc; }
+
+    .suggestions { position: absolute; left: 0; right: 0; z-index: 100;
+                   border: 1px solid #eee; border-radius: 12px; background: white;
+                   max-height: 200px; overflow-y: auto;
+                   box-shadow: 0 4px 12px rgba(0,0,0,0.1); top: calc(100% + 8px);
+                   display: none; }
+    .suggestions div { padding: 12px 16px; cursor: pointer; font-size: 14px; color: #111; }
+    .suggestions div:hover { background: #f5f5f5; }
+    .room-id { font-weight: 700; margin-right: 8px; }
+
+    .bottom-row { display: flex; justify-content: flex-end; margin-top: 12px; }
+    .swap-btn { background: #f5f5f5; border: none; color: #555; border-radius: 20px;
+                padding: 6px 14px; font-size: 12px; cursor: pointer; }
+    .swap-btn:hover { background: #eee; }
+
+    .find-btn { width: 100%; padding: 14px; background: #111; color: #fff;
+                border: none; border-radius: 12px; font-size: 15px;
+                font-weight: 700; cursor: pointer; margin-top: 12px; }
+    .find-btn:hover { background: #333; }
+
+    #error { color: #F44336; font-size: 13px; margin-top: 8px; display: none; }
+    #result-card { display: none; }
+    #result { white-space: pre-line; font-size: 14px; line-height: 2.0; color: #111; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>영파맵</h1>
+  <p>우리학교 길찾기</p>
+</header>
+
+<div class="container">
+  <div class="card">
+    <div class="route-box">
+      <div class="icon-col">
+        <div class="dot-green"></div>
+        <div class="dot-line"></div>
+        <div class="dot-red"></div>
+      </div>
+      <div class="input-col">
+        <div class="input-row">
+          <div class="route-label">출발</div>
+          <div class="input-wrap">
+            <input type="text" id="start-input" placeholder="교실 번호 또는 이름" autocomplete="off">
+            <div class="suggestions" id="start-suggestions"></div>
+          </div>
+        </div>
+        <div class="input-row">
+          <div class="route-label">도착</div>
+          <div class="input-wrap">
+            <input type="text" id="end-input" placeholder="교실 번호 또는 이름" autocomplete="off">
+            <div class="suggestions" id="end-suggestions"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <input type="hidden" id="start-id">
+    <input type="hidden" id="end-id">
+
+    <div class="bottom-row">
+      <button class="swap-btn" id="swap-btn" type="button">↑↓ 바꾸기</button>
+    </div>
+
+    <button class="find-btn" id="find-btn" type="button">경로 찾기</button>
+    <div id="error"></div>
+  </div>
+
+  <div class="card" id="result-card">
+    <div id="result"></div>
+  </div>
+</div>
+
+<script>
+// 영파맵 핵심 로직 — graph.py를 브라우저에서 돌아가게 옮긴 버전
+// (교실 데이터를 고치고 싶으면 아래 DONGAM_ROOMS / YEONGPA_ROOMS 만 수정하면 됨)
+
+const DONGAM_FLOORS = ['B', '1', '2', '3', '4', '5'];
+const YEONGPA_FLOORS = ['B', '1', '2', '3', '4', '5'];
+
+// 층 순서를 그대로 유지하려고 객체 대신 [층, 교실목록] 배열을 씀
+const DONGAM_ROOMS = [
+  ['B', [
+    ['동암B01', '소강당'], ['동암B02', '동암B02'], ['동암B03', '동암B03'],
+    ['동암B04', '동암B04'], ['동암B05', '동암B05'], ['동암B06', '창고'], ['동암B07', '동암B07'],
+    ['동암B08', '다목적실5'], ['동암B09', '다목적실5(연결)'], ['동암B10', '다목적실4'], ['필표실', '필표실'],
+  ]],
+  ['1', [
+    ['동암101', '음악실'], ['동암102', '중학교 교무실'], ['동암103', '중학교 교무실'],
+    ['동암104', 'Wee클래스'], ['동암105', '회의실'], ['동암106', '보건실'], ['동암107', '2HB 커리어존'],
+    ['동암108', '2HB'], ['동암109', '2HB(하)'], ['동암110', '과학실(생명)'],
+  ]],
+  ['2', [
+    ['동암201', '컴퓨터실'], ['동암202', '동암202'], ['동암203', '동암203'],
+    ['동암204', '외국어실A'], ['동암205', '제1교무실'], ['동암206', '공용6'], ['동암207', '제1교무실'],
+    ['동암208', '1-1'], ['동암209', '1-2'], ['동암210', '제2교무실'],
+  ]],
+  ['3', [
+    ['동암301', '음악실'], ['동암302', '중'], ['동암303', '명상실'],
+    ['동암304', '진로연구실'], ['동암305', '제3교무실'], ['동암306', '공용6실'], ['동암307', '제3교무실'],
+    ['동암308', '공용4'], ['동암309', '공용3'], ['동암310', '특별실A'],
+  ]],
+  ['4', [
+    ['동암401', '과학실(물리)'], ['동암402', '3-7'], ['동암403', '3-8'],
+    ['동암404', '3-9'], ['동암405', '설렘(ON)실'], ['동암406', '3-10'], ['동암407', '방송실'],
+    ['동암408', '3-11'], ['동암409', '공용2'], ['동암410', '제4교무실'],
+  ]],
+  ['5', [
+    ['동암501', '과학실(지학)'], ['동암502', '3-6'], ['동암503', '3-5'],
+    ['동암504', '3-4'], ['동암505', '3HB'], ['동암506', '3-3'], ['동암507', '자기주도학습실(3학년)'],
+    ['동암508', '3-2'], ['동암509', '3-1'], ['동암510', '과학실(화학)'],
+  ]],
+];
+const DONGAM_STAIR_AFTER = { L: 2, M: 6 };
+
+const YEONGPA_ROOMS = [
+  ['B', [
+    ['영파B01', '급식실'],
+  ]],
+  ['1', [
+    ['영파103', '성적처리실(동사실)'], ['영파104', '회의실'], ['영파105', '교장실'], ['영파106', '회의실'],
+    ['영파107', '행정실(고)'], ['영파108', '문서관리실'], ['영파109', '이사장실'], ['영파110', '문서관리실'], ['영파111', '행정실(중)'],
+    ['영파113', '관리실'], ['영파114', '공용7'], ['영파115', '미술실A'], ['영파116', '미술실B'],
+    ['영파117', '공용8'], ['영파118', '특별실B(다목적실1)'], ['영파119', '음악실A'], ['영파120', '특별실B(다목적실1)'], ['영파121', '음악실B'], ['영파122', '관리실'],
+  ]],
+  ['2', [
+    ['영파201', '교사연수실A'], ['영파202', '1-3'], ['영파203', '교사연수실A'],
+    ['영파204', '1-4'], ['영파205', '1-11'], ['영파206', '1-5'], ['영파207', '1-10'],
+    ['영파208', '1-6'], ['영파209', '1-9'], ['영파210', '1-7'], ['영파211', '1-8'],
+    ['영파212', '도서실'], ['영파213', '영파213'], ['영파214', '도서실'], ['영파215', '도서실'],
+    ['영파216', '도서실'], ['영파217', '도서실'], ['영파218', '도서실'], ['영파219', '도서실'], ['영파220', '도서실'], ['영파221', '교사연수실B'],
+  ]],
+  ['3', [
+    ['영파301', '2-6'], ['영파302', '2-7'], ['영파303', '수업연구실(3층)'],
+    ['영파304', '2-8'], ['영파305', '2-11'], ['영파306', '2-9'], ['영파307', '2-10'], ['영파308', '행사준비실'],
+    ['창고_3층', '창고'], ['강당_3층', '강당'],
+  ]],
+  ['4', [
+    ['영파401', '공용1'], ['영파402', '2-1'], ['영파403', '교사연구실'],
+    ['영파404', '2-2'], ['영파405', '2-5'], ['영파406', '2-3'], ['영파407', '2-4'], ['영파408', '자기주도학습실(2학년)'],
+    ['다목적실2', '다목적실2'],
+  ]],
+  ['5', [
+    ['좌석_5층', '좌석'], ['다목적실3', '다목적실3'],
+  ]],
+];
+const YEONGPA_STAIR_AFTER = { M: 10 };
+
+// 계단 옆 교실 레이블 (층별)
+const STAIR_LABELS = {
+  '동암_계단L': {
+    'B': '동암관 왼쪽', '1': '동암관 왼쪽', '2': '컴퓨터실(동암201)',
+    '3': '음악실(동암301)', '4': '과학실(동암401)', '5': '과학실(동암501)',
+  },
+  '동암_계단M': {
+    'B': '동암관 가운데', '1': '보건실(동암106)', '2': '제1교무실(동암205)',
+    '3': '제3교무실(동암305)', '4': '방송실(동암407)', '5': '자기주도학습실(동암507)',
+  },
+  '동암_계단R': {
+    'B': '동암관 오른쪽', '1': '생명과학실(동암110)', '2': '제2교무실(동암210)',
+    '3': '특별실A(동암310)', '4': '제4교무실(동암410)', '5': '화학실(동암510)',
+  },
+  '영파_계단M': {
+    'B': '영파관 가운데', '1': '영파관 가운데', '2': '영파관 가운데',
+    '3': '영파관 가운데', '4': '영파관 가운데', '5': '영파관 가운데',
+  },
+  '영파_계단R': {
+    'B': '영파관 오른쪽', '1': '영파관 오른쪽', '2': '영파관 오른쪽',
+    '3': '영파관 오른쪽', '4': '영파관 오른쪽', '5': '영파관 오른쪽',
+  },
+};
+
+// (비용, 노드이름) 순서로 비교하는 최소 힙 — 파이썬 heapq 튜플 비교와 같은 순서
+class MinHeap {
+  constructor() { this.a = []; }
+  get size() { return this.a.length; }
+  _less(x, y) { return x[0] < y[0] || (x[0] === y[0] && x[1] < y[1]); }
+  push(item) {
+    const a = this.a;
+    a.push(item);
+    let i = a.length - 1;
+    while (i > 0) {
+      const p = (i - 1) >> 1;
+      if (this._less(a[i], a[p])) { [a[i], a[p]] = [a[p], a[i]]; i = p; } else break;
+    }
+  }
+  pop() {
+    const a = this.a;
+    const top = a[0];
+    const last = a.pop();
+    if (a.length) {
+      a[0] = last;
+      let i = 0;
+      for (;;) {
+        const l = 2 * i + 1, r = l + 1;
+        let m = i;
+        if (l < a.length && this._less(a[l], a[m])) m = l;
+        if (r < a.length && this._less(a[r], a[m])) m = r;
+        if (m === i) break;
+        [a[i], a[m]] = [a[m], a[i]];
+        i = m;
+      }
+    }
+    return top;
+  }
+}
+
+class SchoolGraph {
+  constructor() {
+    this.graph = new Map();     // 노드 -> [[이웃, 비용, 설명], ...]
+    this.nodeInfo = new Map();  // 노드 -> 이름
+    this._build();
+  }
+
+  _add(u, v, w, d1, d2) {
+    if (!this.graph.has(u)) this.graph.set(u, []);
+    if (!this.graph.has(v)) this.graph.set(v, []);
+    this.graph.get(u).push([v, w, d1]);
+    this.graph.get(v).push([u, w, d2]);
+  }
+
+  _fn(f) { return f === 'B' ? -1 : parseInt(f, 10); }
+
+  _build() {
+    for (const [floor, rooms] of DONGAM_ROOMS) {
+      const nodes = rooms.map(r => r[0]);
+      for (const [rid, rname] of rooms) this.nodeInfo.set(rid, rname);
+      const sL = `동암_계단L_${floor}`;
+      const sM = `동암_계단M_${floor}`;
+      const sR = `동암_계단R_${floor}`;
+      for (const s of [sL, sM, sR]) this.nodeInfo.set(s, s);
+      const corridor = [];
+      nodes.forEach((rid, i) => {
+        corridor.push(rid);
+        if (i === DONGAM_STAIR_AFTER.L) corridor.push(sL);
+        if (i === DONGAM_STAIR_AFTER.M) corridor.push(sM);
+      });
+      corridor.push(sR);
+      for (let i = 0; i < corridor.length - 1; i++) {
+        this._add(corridor[i], corridor[i + 1], 1, '복도 이동', '복도 이동');
+      }
+    }
+
+    for (const stair of ['L', 'M', 'R']) {
+      for (let i = 0; i < DONGAM_FLOORS.length - 1; i++) {
+        const f1 = DONGAM_FLOORS[i], f2 = DONGAM_FLOORS[i + 1];
+        const n1 = `동암_계단${stair}_${f1}`;
+        const n2 = `동암_계단${stair}_${f2}`;
+        const diff = Math.abs(this._fn(f2) - this._fn(f1));
+        this._add(n1, n2, diff * 3,
+          `계단 올라가기(${f1}→${f2}층)`,
+          `계단 내려가기(${f2}→${f1}층)`);
+      }
+    }
+
+    for (const [floor, rooms] of YEONGPA_ROOMS) {
+      const nodes = rooms.map(r => r[0]);
+      for (const [rid, rname] of rooms) this.nodeInfo.set(rid, rname);
+      const sM = `영파_계단M_${floor}`;
+      const sR = `영파_계단R_${floor}`;
+      for (const s of [sM, sR]) this.nodeInfo.set(s, s);
+      const corridor = [];
+      nodes.forEach((rid, i) => {
+        corridor.push(rid);
+        if (i === YEONGPA_STAIR_AFTER.M) corridor.push(sM);
+      });
+      corridor.push(sR);
+      for (let i = 0; i < corridor.length - 1; i++) {
+        this._add(corridor[i], corridor[i + 1], 1, '복도 이동', '복도 이동');
+      }
+    }
+
+    for (const stair of ['M', 'R']) {
+      for (let i = 0; i < YEONGPA_FLOORS.length - 1; i++) {
+        const f1 = YEONGPA_FLOORS[i], f2 = YEONGPA_FLOORS[i + 1];
+        const n1 = `영파_계단${stair}_${f1}`;
+        const n2 = `영파_계단${stair}_${f2}`;
+        this._add(n1, n2, 3,
+          `계단 올라가기(${f1}→${f2}층)`,
+          `계단 내려가기(${f2}→${f1}층)`);
+      }
+    }
+
+    for (const floor of ['1', '2', '3', '4', '5']) {
+      this._add(`동암_계단R_${floor}`, `영파_계단M_${floor}`, 2,
+        '영파관으로 이동', '동암관으로 이동');
+    }
+  }
+
+  // 반환: { cost, path } 또는 경로가 없으면 null
+  dijkstra(start, end) {
+    const dist = new Map([[start, 0]]);
+    const prev = new Map([[start, [null, '']]]);
+    const pq = new MinHeap();
+    pq.push([0, start]);
+    while (pq.size) {
+      const [cost, u] = pq.pop();
+      const best = dist.has(u) ? dist.get(u) : Infinity;
+      if (cost > best) continue;
+      if (u === end) break;
+      for (const [v, w] of (this.graph.get(u) || [])) {
+        const nc = cost + w;
+        const old = dist.has(v) ? dist.get(v) : Infinity;
+        if (nc < old) {
+          dist.set(v, nc);
+          prev.set(v, [u, '']);
+          pq.push([nc, v]);
+        }
+      }
+    }
+    if (!dist.has(end)) return null;
+    const path = [];
+    let cur = end;
+    while (cur) {
+      path.push(cur);
+      cur = prev.get(cur)[0];
+    }
+    path.reverse();
+    return { cost: dist.get(end), path };
+  }
+
+  _stairLabel(node) {
+    const floor = node.split('_').pop();
+    for (const key of Object.keys(STAIR_LABELS)) {
+      if (node.includes(key)) return STAIR_LABELS[key][floor] || '계단';
+    }
+    return '계단';
+  }
+
+  _floorOf(node) {
+    const last = node.split('_').pop();
+    if (last === 'B') return -1;
+    return /^[+-]?\d+$/.test(last) ? parseInt(last, 10) : null;
+  }
+
+  describePath(path) {
+    if (!path || !path.length) return '경로를 찾을 수 없습니다.';
+    if (path.length === 1) return '현재 위치가 목적지입니다.';
+
+    const nameOf = id => (this.nodeInfo.has(id) ? this.nodeInfo.get(id) : id);
+    const lines = [
+      `📍 출발: ${nameOf(path[0])} (${path[0]})`,
+      `🏁 도착: ${nameOf(path[path.length - 1])} (${path[path.length - 1]})`,
+      '─'.repeat(32),
+    ];
+    let i = 0, step = 1;
+    while (i < path.length - 1) {
+      const cur = path[i], nxt = path[i + 1];
+
+      // 교실 → 계단 진입
+      if (nxt.includes('계단') && !cur.includes('계단')) {
+        const stairLabel = this._stairLabel(nxt);
+        let j = i + 1;
+        const stairKind = nxt.split('_계단')[1].split('_')[0];
+        while (j < path.length - 1 && path[j].includes('계단') && path[j].includes(`_계단${stairKind}_`)) {
+          j++;
+        }
+        const f1 = this._floorOf(path[i + 1]);
+        const f2 = path[j - 1].includes('계단') ? this._floorOf(path[j - 1]) : this._floorOf(path[j]);
+        if (f1 !== null && f2 !== null && f1 !== f2) {
+          const diff = f2 - f1;
+          const direction = diff > 0 ? '올라갑니다' : '내려갑니다';
+          lines.push(`  ${step}. ${stairLabel} 옆 계단을 이용해 ${Math.abs(diff)}층 ${direction}.`);
+        } else {
+          lines.push(`  ${step}. ${stairLabel} 옆 계단으로 이동합니다.`);
+        }
+        step++;
+        i = j;
+        continue;
+      }
+
+      // 건물 간 연결 통로
+      if (cur.includes('계단R') && nxt.includes('계단M')) {
+        if (cur.startsWith('동암')) {
+          lines.push(`  ${step}. 연결 통로를 통해 영파관으로 이동합니다.`);
+        } else {
+          lines.push(`  ${step}. 연결 통로를 통해 동암관으로 이동합니다.`);
+        }
+        step++;
+        i++;
+        continue;
+      }
+
+      if (cur.includes('계단') && nxt.includes('계단')) { i++; continue; }
+      if (cur.includes('계단') && !nxt.includes('계단')) { i++; continue; }
+      if (nxt !== path[path.length - 1]) { i++; continue; }
+
+      // 목적지 도착
+      lines.push(`  ${step}. ${nameOf(nxt)}(${nxt})에 도착합니다.`);
+      step++;
+      i++;
+    }
+
+    lines.push('─'.repeat(32));
+    return lines.join('\n');
+  }
+
+  getAllRooms() {
+    const rooms = [];
+    for (const [rid, rname] of this.nodeInfo) {
+      if (!rid.includes('계단')) rooms.push({ id: rid, name: rname });
+    }
+    return rooms.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  }
+
+  // app.py 의 /search 와 같은 동작: 이름이 같은 교실은 하나만 보여줌
+  search(query) {
+    const q = (query || '').trim();
+    const seen = new Set();
+    const results = [];
+    for (const r of this.getAllRooms()) {
+      if (r.id.includes(q) || r.name.includes(q)) {
+        if (!seen.has(r.name)) {
+          seen.add(r.name);
+          results.push(r);
+        }
+      }
+    }
+    return results;
+  }
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { SchoolGraph };
+}
+
+</script>
+
+<script>
+// ---- 화면 로직: 서버 호출(fetch) 대신 브라우저 안에서 바로 계산 ----
+const g = new SchoolGraph();
+
+function setupAutocomplete(inputId, suggestionsId, hiddenId) {
+  const input  = document.getElementById(inputId);
+  const box    = document.getElementById(suggestionsId);
+  const hidden = document.getElementById(hiddenId);
+
+  input.addEventListener('input', () => {
+    const q = input.value.trim();
+    hidden.value = '';
+    if (!q) { box.style.display = 'none'; return; }
+    const rooms = g.search(q);
+    if (!rooms.length) { box.style.display = 'none'; return; }
+    box.replaceChildren();
+    rooms.slice(0, 8).forEach(r => {
+      const item = document.createElement('div');
+      const idEl = document.createElement('span');
+      idEl.className = 'room-id';
+      idEl.textContent = r.id;
+      item.append(idEl, document.createTextNode(r.name));
+      item.addEventListener('click', () => selectRoom(input, box, hidden, r.id, r.name));
+      box.appendChild(item);
+    });
+    box.style.display = 'block';
+  });
+
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      const first = box.querySelector('div');
+      if (first) first.click();
+    }
+  });
+
+  document.addEventListener('click', e => {
+    if (!input.contains(e.target) && !box.contains(e.target)) box.style.display = 'none';
+  });
+}
+
+function selectRoom(input, box, hidden, id, name) {
+  input.value  = id + ' (' + name + ')';
+  hidden.value = id;
+  box.style.display = 'none';
+}
+
+function swapRooms() {
+  const si = document.getElementById('start-input');
+  const ei = document.getElementById('end-input');
+  const sh = document.getElementById('start-id');
+  const eh = document.getElementById('end-id');
+  [si.value, ei.value] = [ei.value, si.value];
+  [sh.value, eh.value] = [eh.value, sh.value];
+}
+
+function findRoute() {
+  const start   = document.getElementById('start-id').value;
+  const end     = document.getElementById('end-id').value;
+  const errEl   = document.getElementById('error');
+  const resEl   = document.getElementById('result');
+  const resCard = document.getElementById('result-card');
+  errEl.style.display = 'none';
+
+  const showError = msg => {
+    errEl.textContent     = msg;
+    errEl.style.display   = 'block';
+    resCard.style.display = 'none';
+  };
+
+  if (!start || !end) return showError('교실을 목록에서 선택해주세요.');
+  if (!g.nodeInfo.has(start)) return showError('출발지 "' + start + '"를 찾을 수 없습니다.');
+  if (!g.nodeInfo.has(end))   return showError('목적지 "' + end + '"를 찾을 수 없습니다.');
+
+  const found = g.dijkstra(start, end);
+  if (!found) return showError('경로를 찾을 수 없습니다.');
+
+  resEl.textContent     = g.describePath(found.path);
+  resCard.style.display = 'block';
+}
+
+document.getElementById('swap-btn').addEventListener('click', swapRooms);
+document.getElementById('find-btn').addEventListener('click', findRoute);
+setupAutocomplete('start-input', 'start-suggestions', 'start-id');
+setupAutocomplete('end-input',   'end-suggestions',   'end-id');
+</script>
+</body>
+</html>
