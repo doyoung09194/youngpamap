@@ -114,6 +114,7 @@
 // (교실 데이터를 고치고 싶으면 아래 DONGAM_ROOMS / YEONGPA_ROOMS 만 수정하면 됨)
 
 const DONGAM_FLOORS = ['B', '1', '2', '3', '4', '5'];
+const FLOOR_ORDER = ['B', '1', '2', '3', '4', '5'];
 const YEONGPA_FLOORS = ['B', '1', '2', '3', '4', '5'];
 
 // 층 순서를 그대로 유지하려고 객체 대신 [층, 교실목록] 배열을 씀
@@ -129,13 +130,13 @@ const DONGAM_ROOMS = [
     ['동암108', '2HB'], ['동암109', '2HB(하)'], ['동암110', '과학실(생명)'],
   ]],
   ['2', [
-    ['동암201', '컴퓨터실'], ['동암202', '동암202'], ['동암203', '동암203'],
+    ['동암201', '컴퓨터실'], ['동암202', '중학교'], ['동암203', '중학교'],
     ['동암204', '외국어실A'], ['동암205', '제1교무실'], ['동암206', '공용6'], ['동암207', '제1교무실'],
     ['동암208', '1-1'], ['동암209', '1-2'], ['동암210', '제2교무실'],
   ]],
   ['3', [
-    ['동암301', '음악실'], ['동암302', '중'], ['동암303', '명상실'],
-    ['동암304', '진로연구실'], ['동암305', '제3교무실'], ['동암306', '공용6실'], ['동암307', '제3교무실'],
+    ['동암301', '음악실'], ['동암302', '중학교'], ['동암303', '명상실'],
+    ['동암304', '진로연구실'], ['동암305', '제3교무실'], ['동암306', '공용5'], ['동암307', '제3교무실'],
     ['동암308', '공용4'], ['동암309', '공용3'], ['동암310', '특별실A'],
   ]],
   ['4', [
@@ -149,7 +150,14 @@ const DONGAM_ROOMS = [
     ['동암508', '3-2'], ['동암509', '3-1'], ['동암510', '과학실(화학)'],
   ]],
 ];
-const DONGAM_STAIR_AFTER = { L: 2, M: 6 };
+// 계단이 복도에서 몇 번째 교실 뒤에 있는지 (층별). R 기본값은 복도 맨 끝.
+// 도면 기준: 2~4층은 동암관 끝 계단이 마지막 교실 바로 앞(영파관과 만나는 모서리)에 있음,
+// 3층 가운데 계단은 진로연구실(동암304) 옆.
+const DONGAM_STAIR_AFTER = {
+  L: { B: 2, '1': 2, '2': 2, '3': 2, '4': 2, '5': 2 },
+  M: { B: 6, '1': 6, '2': 6, '3': 3, '4': 6, '5': 6 },
+  R: { B: 9, '1': 9, '2': 8, '3': 8, '4': 8, '5': 9 },
+};
 
 const YEONGPA_ROOMS = [
   ['B', [
@@ -183,28 +191,33 @@ const YEONGPA_ROOMS = [
   ]],
 ];
 const YEONGPA_STAIR_AFTER = { M: 10 };
+// 영파관 2~4층: 동암관과 만나는 모서리 계단(S). 복도 맨 앞에 둠(현장 확인 필요).
+const YEONGPA_CORNER_FLOORS = ['2', '3', '4'];
 
 // 계단 옆 교실 레이블 (층별)
 const STAIR_LABELS = {
   '동암_계단L': {
-    'B': '동암관 왼쪽', '1': '동암관 왼쪽', '2': '컴퓨터실(동암201)',
+    'B': '동암관 끝', '1': '동암관 끝', '2': '컴퓨터실(동암201)',
     '3': '음악실(동암301)', '4': '과학실(동암401)', '5': '과학실(동암501)',
   },
   '동암_계단M': {
     'B': '동암관 가운데', '1': '보건실(동암106)', '2': '제1교무실(동암205)',
-    '3': '제3교무실(동암305)', '4': '방송실(동암407)', '5': '자기주도학습실(동암507)',
+    '3': '진로연구실(동암304)', '4': '방송실(동암407)', '5': '자기주도학습실(동암507)',
   },
   '동암_계단R': {
-    'B': '동암관 오른쪽', '1': '생명과학실(동암110)', '2': '제2교무실(동암210)',
-    '3': '특별실A(동암310)', '4': '제4교무실(동암410)', '5': '화학실(동암510)',
+    'B': '동암관 끝', '1': '생명과학실(동암110)', '2': '1-2(동암209)',
+    '3': '공용3(동암309)', '4': '공용2(동암409)', '5': '화학실(동암510)',
   },
   '영파_계단M': {
     'B': '영파관 가운데', '1': '영파관 가운데', '2': '영파관 가운데',
     '3': '영파관 가운데', '4': '영파관 가운데', '5': '영파관 가운데',
   },
   '영파_계단R': {
-    'B': '영파관 오른쪽', '1': '영파관 오른쪽', '2': '영파관 오른쪽',
-    '3': '영파관 오른쪽', '4': '영파관 오른쪽', '5': '영파관 오른쪽',
+    'B': '영파관 끝', '1': '영파관 끝', '2': '영파관 끝',
+    '3': '영파관 끝', '4': '영파관 끝', '5': '영파관 끝',
+  },
+  '영파_계단S': {
+    '2': '동암관 쪽 모서리', '3': '동암관 쪽 모서리', '4': '동암관 쪽 모서리',
   },
 };
 
@@ -247,6 +260,8 @@ class SchoolGraph {
   constructor() {
     this.graph = new Map();     // 노드 -> [[이웃, 비용, 설명], ...]
     this.nodeInfo = new Map();  // 노드 -> 이름
+    this.info = new Map();      // 노드 -> { building, floor }
+    this.pos = new Map();       // 노드 -> 복도에서의 순서(왼쪽 → 오른쪽)
     this._build();
   }
 
@@ -262,18 +277,19 @@ class SchoolGraph {
   _build() {
     for (const [floor, rooms] of DONGAM_ROOMS) {
       const nodes = rooms.map(r => r[0]);
-      for (const [rid, rname] of rooms) this.nodeInfo.set(rid, rname);
+      for (const [rid, rname] of rooms) { this.nodeInfo.set(rid, rname); this.info.set(rid, { building: '동암', floor }); }
       const sL = `동암_계단L_${floor}`;
       const sM = `동암_계단M_${floor}`;
       const sR = `동암_계단R_${floor}`;
-      for (const s of [sL, sM, sR]) this.nodeInfo.set(s, s);
+      for (const s of [sL, sM, sR]) { this.nodeInfo.set(s, s); this.info.set(s, { building: '동암', floor }); }
       const corridor = [];
       nodes.forEach((rid, i) => {
         corridor.push(rid);
-        if (i === DONGAM_STAIR_AFTER.L) corridor.push(sL);
-        if (i === DONGAM_STAIR_AFTER.M) corridor.push(sM);
+        if (i === DONGAM_STAIR_AFTER.L[floor]) corridor.push(sL);
+        if (i === DONGAM_STAIR_AFTER.M[floor]) corridor.push(sM);
+        if (i === DONGAM_STAIR_AFTER.R[floor]) corridor.push(sR);
       });
-      corridor.push(sR);
+      corridor.forEach((n, idx) => this.pos.set(n, idx));
       for (let i = 0; i < corridor.length - 1; i++) {
         this._add(corridor[i], corridor[i + 1], 1, '복도 이동', '복도 이동');
       }
@@ -293,16 +309,19 @@ class SchoolGraph {
 
     for (const [floor, rooms] of YEONGPA_ROOMS) {
       const nodes = rooms.map(r => r[0]);
-      for (const [rid, rname] of rooms) this.nodeInfo.set(rid, rname);
+      for (const [rid, rname] of rooms) { this.nodeInfo.set(rid, rname); this.info.set(rid, { building: '영파', floor }); }
       const sM = `영파_계단M_${floor}`;
       const sR = `영파_계단R_${floor}`;
-      for (const s of [sM, sR]) this.nodeInfo.set(s, s);
-      const corridor = [];
+      const sS = `영파_계단S_${floor}`;
+      const hasS = YEONGPA_CORNER_FLOORS.includes(floor);
+      for (const s of (hasS ? [sM, sR, sS] : [sM, sR])) { this.nodeInfo.set(s, s); this.info.set(s, { building: '영파', floor }); }
+      const corridor = hasS ? [sS] : [];
       nodes.forEach((rid, i) => {
         corridor.push(rid);
         if (i === YEONGPA_STAIR_AFTER.M) corridor.push(sM);
       });
       corridor.push(sR);
+      corridor.forEach((n, idx) => this.pos.set(n, idx));
       for (let i = 0; i < corridor.length - 1; i++) {
         this._add(corridor[i], corridor[i + 1], 1, '복도 이동', '복도 이동');
       }
@@ -319,8 +338,19 @@ class SchoolGraph {
       }
     }
 
-    for (const floor of ['1', '2', '3', '4', '5']) {
+    for (let i = 0; i < YEONGPA_CORNER_FLOORS.length - 1; i++) {
+      const f1 = YEONGPA_CORNER_FLOORS[i], f2 = YEONGPA_CORNER_FLOORS[i + 1];
+      this._add(`영파_계단S_${f1}`, `영파_계단S_${f2}`, 3,
+        `계단 올라가기(${f1}→${f2}층)`, `계단 내려가기(${f2}→${f1}층)`);
+    }
+
+    // 건물 연결: 2~4층은 모서리 계단끼리, 1·5층은 예전 연결(영파 가운데 계단) 유지
+    for (const floor of ['1', '5']) {
       this._add(`동암_계단R_${floor}`, `영파_계단M_${floor}`, 2,
+        '영파관으로 이동', '동암관으로 이동');
+    }
+    for (const floor of YEONGPA_CORNER_FLOORS) {
+      this._add(`동암_계단R_${floor}`, `영파_계단S_${floor}`, 2,
         '영파관으로 이동', '동암관으로 이동');
     }
   }
@@ -357,18 +387,42 @@ class SchoolGraph {
     return { cost: dist.get(end), path };
   }
 
-  _stairLabel(node) {
-    const floor = node.split('_').pop();
+  _floorName(f) { return f === 'B' ? '지하' : `${f}층`; }
+
+  // 계단 이름: 옆 교실이 있으면 "컴퓨터실(동암201) 옆 계단", 없으면 "영파관 오른쪽 계단"
+  _stairDesc(node) {
+    const { floor } = this.info.get(node);
     for (const key of Object.keys(STAIR_LABELS)) {
-      if (node.includes(key)) return STAIR_LABELS[key][floor] || '계단';
+      if (node.startsWith(key + '_')) {
+        const label = STAIR_LABELS[key][floor];
+        if (!label) return '계단';
+        return label.includes('(') ? `${label} 옆 계단` : `${label} 계단`;
+      }
     }
     return '계단';
   }
 
-  _floorOf(node) {
-    const last = node.split('_').pop();
-    if (last === 'B') return -1;
-    return /^[+-]?\d+$/.test(last) ? parseInt(last, 10) : null;
+  _place(node) {
+    if (node.includes('계단')) return this._stairDesc(node);
+    const name = this.nodeInfo.get(node);
+    if (name === node) return node;
+    return name.includes('(') ? `${name} [${node}]` : `${name}(${node})`;
+  }
+
+  // 경로를 "복도 걷기(walk) / 계단(vertical) / 건물 사이 연결 통로(cross)" 덩어리로 나눔
+  _segments(path) {
+    const segs = [];
+    for (let i = 0; i < path.length - 1; i++) {
+      const a = path[i], b = path[i + 1];
+      const ia = this.info.get(a), ib = this.info.get(b);
+      let type = 'walk';
+      if (ia.building !== ib.building) type = 'cross';
+      else if (ia.floor !== ib.floor) type = 'vertical';
+      const lastSeg = segs[segs.length - 1];
+      if (lastSeg && lastSeg.type === type && type !== 'cross') lastSeg.nodes.push(b);
+      else segs.push({ type, nodes: [a, b] });
+    }
+    return segs;
   }
 
   describePath(path) {
@@ -380,53 +434,48 @@ class SchoolGraph {
       `📍 출발: ${nameOf(path[0])} (${path[0]})`,
       `🏁 도착: ${nameOf(path[path.length - 1])} (${path[path.length - 1]})`,
     ];
-    let i = 0, step = 1;
-    while (i < path.length - 1) {
-      const cur = path[i], nxt = path[i + 1];
 
-      // 교실 → 계단 진입
-      if (nxt.includes('계단') && !cur.includes('계단')) {
-        const stairLabel = this._stairLabel(nxt);
-        let j = i + 1;
-        const stairKind = nxt.split('_계단')[1].split('_')[0];
-        while (j < path.length - 1 && path[j].includes('계단') && path[j].includes(`_계단${stairKind}_`)) {
-          j++;
+    const segs = this._segments(path);
+    let here = this._place(path[0]);
+    segs.forEach((seg, k) => {
+      const first = seg.nodes[0];
+      const last = seg.nodes[seg.nodes.length - 1];
+      const fi = this.info.get(first), li = this.info.get(last);
+      const isFinal = k === segs.length - 1;
+      let text;
+
+      if (seg.type === 'walk') {
+        const target = this._place(last);
+        // 출발/도착 지점에 이미 나온 이름은 "지나는 곳"에서 뺌
+        const skip = new Set();
+        for (const n of [first, last]) {
+          if (n.includes('계단')) {
+            const d = this._stairDesc(n);
+            if (d.includes('(')) skip.add(d.split('(')[0]);
+          } else {
+            skip.add(this.nodeInfo.get(n));
+          }
         }
-        const f1 = this._floorOf(path[i + 1]);
-        const f2 = path[j - 1].includes('계단') ? this._floorOf(path[j - 1]) : this._floorOf(path[j]);
-        if (f1 !== null && f2 !== null && f1 !== f2) {
-          const diff = f2 - f1;
-          const direction = diff > 0 ? '올라갑니다' : '내려갑니다';
-          lines.push(`  ${step}. ${stairLabel} 옆 계단을 이용해 ${Math.abs(diff)}층 ${direction}.`);
-        } else {
-          lines.push(`  ${step}. ${stairLabel} 옆 계단으로 이동합니다.`);
+        const seen = [];
+        for (const n of seg.nodes.slice(1, -1)) {
+          if (n.includes('계단')) continue;
+          const nm = this.nodeInfo.get(n);
+          if (nm !== n && !skip.has(nm) && !seen.includes(nm)) seen.push(nm);
         }
-        step++;
-        i = j;
-        continue;
+        const passed = seen.length ? `${seen.slice(0, 3).join(', ')} 앞을 지나 ` : '';
+        text = `${here}에서 출발해 ${this._floorName(fi.floor)} 복도를 따라 ${passed}${target}${isFinal ? '에 도착해요.' : '까지 가요.'}`;
+        here = target;
+      } else if (seg.type === 'vertical') {
+        const up = FLOOR_ORDER.indexOf(li.floor) > FLOOR_ORDER.indexOf(fi.floor);
+        const cnt = seg.nodes.length - 1;
+        text = `${here}으로 ${this._floorName(fi.floor)}에서 ${this._floorName(li.floor)}까지 ${cnt}층 ${up ? '올라가요' : '내려가요'}.`;
+        here = this._stairDesc(last);
+      } else {
+        text = `${this._floorName(fi.floor)}에서 연결 통로를 지나 ${li.building}관으로 건너가요.`;
+        here = this._stairDesc(last);
       }
-
-      // 건물 간 연결 통로
-      if (cur.includes('계단R') && nxt.includes('계단M')) {
-        if (cur.startsWith('동암')) {
-          lines.push(`  ${step}. 연결 통로를 통해 영파관으로 이동합니다.`);
-        } else {
-          lines.push(`  ${step}. 연결 통로를 통해 동암관으로 이동합니다.`);
-        }
-        step++;
-        i++;
-        continue;
-      }
-
-      if (cur.includes('계단') && nxt.includes('계단')) { i++; continue; }
-      if (cur.includes('계단') && !nxt.includes('계단')) { i++; continue; }
-      if (nxt !== path[path.length - 1]) { i++; continue; }
-
-      // 목적지 도착
-      lines.push(`  ${step}. ${nameOf(nxt)}(${nxt})에 도착합니다.`);
-      step++;
-      i++;
-    }
+      lines.push(`  ${k + 1}. ${text}`);
+    });
 
     return lines.join('\n');
   }
